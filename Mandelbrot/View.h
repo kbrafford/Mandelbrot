@@ -17,6 +17,8 @@
 @property (assign, nonatomic) float y;
 @property (assign, nonatomic) float w;
 @property (assign, nonatomic) float h;
+@property (assign, nonatomic) float xc;
+@property (assign, nonatomic) float yc;
 @property (assign, nonatomic) float elapsed;
 @property (assign, nonatomic) int color_mode;
 

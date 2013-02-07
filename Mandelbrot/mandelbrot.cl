@@ -32,3 +32,26 @@ kernel void mandelbrot(
     }
     output[index] = result;
 }
+
+kernel void julia(
+    int _max, int _xs, int _ys,
+    float _x, float _y, float _w, float _h,
+    float _xc, float _yc,
+    global float *output)
+{
+    size_t index = get_global_id(0);
+    float result;
+    float i = index % _xs;
+    float j = index / _xs;
+    float x = _x + _w * (i / _xs);
+    float y = _y + _h * (j / _ys);
+    int iteration = 0;
+    while (x * x + y * y < 4 && iteration < _max) {
+        float temp = x * x - y * y + _xc;
+        y = 2 * x * y + _yc;
+        x = temp;
+        iteration++;
+    }
+    result = iteration;
+    output[index] = result;
+}

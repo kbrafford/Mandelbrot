@@ -11,6 +11,7 @@
 #include "mandelbrot.cl.h"
 
 #define USE_CL 1
+#define USE_JULIA 1
 
 #define W 1024
 #define H 768
@@ -85,7 +86,12 @@ void hsv_to_rgb(float *r, float *g, float *b, float h, float s, float v) {
         }
         dispatch_sync(queue, ^{
             cl_ndrange range = {1, {0, 0, 0}, {N, 0, 0}, {0, 0, 0}};
-            mandelbrot_kernel(&range, self.max, W, H, self.x, self.y, self.w, self.h, self.cl_mem);
+            if (USE_JULIA) {
+                julia_kernel(&range, self.max, W, H, self.x, self.y, self.w, self.h, self.xc, self.yc, self.cl_mem);
+            }
+            else {
+                mandelbrot_kernel(&range, self.max, W, H, self.x, self.y, self.w, self.h, self.cl_mem);
+            }
             gcl_memcpy(self.mem, self.cl_mem, sizeof(cl_float) * N);
         });
     }
@@ -103,10 +109,18 @@ void hsv_to_rgb(float *r, float *g, float *b, float h, float s, float v) {
         self.mem = malloc(sizeof(cl_float) * N);
         self.cl_mem = gcl_malloc(sizeof(cl_float) * N, NULL, CL_MEM_WRITE_ONLY);
         self.max = MAX_ITERATIONS;
-        self.x = -2.5;
-        self.y = -1.5;
+        if (USE_JULIA) {
+            self.x = -2.0f;
+            self.y = -1.5f;
+        }
+        else {
+            self.x = -2.5f;
+            self.y = -1.5f;
+        }
         self.w = 4;
         self.h = 3;
+        self.xc = -0.8f;
+        self.yc = 0.156f;
         self.elapsed = 0;
         self.color_mode = GREEN;
         [self update];
@@ -197,13 +211,28 @@ void hsv_to_rgb(float *r, float *g, float *b, float h, float s, float v) {
 
 - (void)mouseDown:(NSEvent *)event {
     NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
-    float x = self.x + self.w * point.x / W;
-    float y = self.y + self.h * point.y / H;
-    self.w /= ZOOM;
-    self.h /= ZOOM;
-    self.x = x - self.w / 2;
-    self.y = y - self.h / 2;
+    if (USE_JULIA) {
+        self.xc = 2 * point.x / self.bounds.size.width - 1;
+        self.yc = 2 * point.y / self.bounds.size.height - 1;
+    }
+    else {
+        float x = self.x + self.w * point.x / W;
+        float y = self.y + self.h * point.y / H;
+        self.w /= ZOOM;
+        self.h /= ZOOM;
+        self.x = x - self.w / 2;
+        self.y = y - self.h / 2;
+    }
     [self update];
+}
+
+- (void)mouseDragged:(NSEvent *)event {
+    if (USE_JULIA) {
+        NSPoint point = [self convertPoint:event.locationInWindow fromView:nil];
+        self.xc = 2 * point.x / self.bounds.size.width - 1;
+        self.yc = 2 * point.y / self.bounds.size.height - 1;
+        [self update];
+    }
 }
 
 - (void)rightMouseDown:(NSEvent *)event {
