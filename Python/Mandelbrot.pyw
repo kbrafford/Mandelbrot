@@ -5,7 +5,7 @@ from PIL import ImageFont, Image
 import numpy as np
 from numpy import int32, float32
 
-USE_JULIA = True
+USE_JULIA = False
 MONOCHROME = True
 
 W = 1024
@@ -40,11 +40,11 @@ class cl_unit(object):
             self.x = -2.5
             self.y = -1.5
 
-        self.w = 4
-        self.h = 3
+        self.w = 4.0
+        self.h = 3.0
         self.xc = -0.8
         self.yc = 0.156
-        self.elapsed = 0
+        self.elapsed = 0.
         self.color_mode = GREEN
         #[self update];
 
@@ -202,13 +202,15 @@ class Panel(wx.Panel):
 
     def on_left(self, event):
         point = event.GetPosition()
+        point = float(W - point[0]), float(H - point[1])
 
-        if USE_JULIA:
-            self.cl_model.xc = 2 * float(point[0])/W - 1
-            self.cl_model.yc = 2 * float(point[1])/H - 1
-        else:
-            x = self.cl_model.x + self.cl_model.w * float(point[0]) / W
-            y = self.cl_model.y + self.cl_model.h * float(point[1]) / H
+        #if USE_JULIA:
+        #    self.cl_model.xc = 2 * float(point[0])/W - 1
+        #    self.cl_model.yc = 2 * float(point[1])/H - 1
+        #else:
+        if True:
+            x = self.cl_model.x + self.cl_model.w * (point[0] / W)
+            y = self.cl_model.y + self.cl_model.h * (point[1] / H)
             self.cl_model.w /= ZOOM
             self.cl_model.h /= ZOOM
             self.cl_model.x = x - self.cl_model.w / 2
@@ -217,6 +219,7 @@ class Panel(wx.Panel):
         
     def on_right(self, event):
         point = event.GetPosition()
+        point = W - point[0], H -point[1]
     
         x = self.cl_model.x + self.cl_model.w * float(point[0]) / W
         y = self.cl_model.y + self.cl_model.h * float(point[1]) / H
@@ -227,7 +230,7 @@ class Panel(wx.Panel):
         self.update()
     
     def update_titlebar(self):
-        self.parent.SetTitle("PyFly1 - simple example (%.2f fps)" % self.fps)
+        self.parent.SetTitle("OpenCL Mandelbrot - simple example (%.2f fps)" % self.fps)
     def update(self):
         self.Refresh()
         self.Update()
