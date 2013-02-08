@@ -5,7 +5,8 @@ from PIL import ImageFont, Image
 import numpy as np
 from numpy import int32, float32
 
-USE_JULIA = 1
+USE_JULIA = True
+MONOCHROME = True
 
 W = 1024
 H = 768
@@ -47,33 +48,6 @@ class cl_unit(object):
         self.color_mode = GREEN
         #[self update];
 
-    def update(self):
-
-        if USE_JULIA:
-            self.julia.julia(self.queue, (N,1), None, 
-                         int32(self.max), int32(W), int32(H), float32(self.x), float32(self.y), float32(self.w), 
-                         float32(self.h), float32(self.xc), float32(self.yc), self.cl_mem)
-        else:
-            self.mandelbrot.mandelbrot(self.queue, (N,1), None,
-                         int32(self.max), int32(W), int32(H), float32(self.x), float32(self.y), float32(self.w), 
-                         float32(self.h), self.cl_mem)
-
-        self.min_value.min_value(self.queue, (1, 1), None,
-                          self.cl_mem, int32(N), self.cl_min)
-
-        #cl.enqueue_copy(self.queue, output, self.cl_mem).wait()
-        
-        #min_value = np.empty((1,1), dtype=np.float32)
-        
-        self.colour_green.colour_green(self.queue, (N,1), None,
-                          self.cl_mem, self.cl_colour_buffer, self.cl_min, float32(self.max))
-
-        output = np.empty((N,1), dtype=np.int32)
-                          
-        cl.enqueue_copy(self.queue, output, self.cl_colour_buffer).wait()
-        return output
-    
-
     def make_kernels(self):
         prg = cl.Program(self.ctx, """
             __kernel void min_value(global float *buffer, int count, global float* result)
@@ -88,10 +62,7 @@ class cl_unit(object):
                 }
                 result[0] = current_min;
             }
-            """)
-        self.min_value = prg.build()
 
-        prg = cl.Program(self.ctx, """
             void hsv_to_rgb(float *r, float *g, float *b, float h, float s, float v) {
                 h /= 60;
                 int i = floor(h);
@@ -109,32 +80,32 @@ class cl_unit(object):
                 }
             }   
 
-        __kernel void colour_green(global float *input_buffer, 
-                                   global char4 *output_buffer, 
-                                   global float *min_value, float max_value)
-        {   
-            size_t index = get_global_id(0);
-            float4 rgba;
-            
-            if (input_buffer[index] >= max_value) {
-                rgba = (float4)(0.,0.,0.,0.);
-            } else {
-                float p = log(input_buffer[index] - *min_value + 1) / log(max_value - *min_value + 1);
-                float r, g, b;
-                hsv_to_rgb(&r, &g, &b, 120.0, 1.0, 1.0 - p);
-                rgba = (r, g, b, 1.0);
+            __kernel void colour_green(global float *input_buffer, 
+                                       global char4 *output_buffer, 
+                                       global float *min_value, float max_value)
+            {   
+                size_t index = get_global_id(0);
+                float4 rgba;
+                
+                if (input_buffer[index] >= max_value) {
+                    rgba = (float4)(0.,0.,0.,0.);
+                } else {
+                    float p = log(input_buffer[index] - *min_value + 1) / log(max_value - *min_value + 1);
+                    float r, g, b;
+                    hsv_to_rgb(&r, &g, &b, 120.0, 1.0, 1.0 - p);
+                    rgba = (r, g, b, 1.0);
+                }
+                char4 retval;
+                retval = (char4) ((char) (255.0 * rgba.s0), (char) (255.0 * rgba.s1), (char) (255.0 * rgba.s2), (char) (255.0 * rgba.s3));
+
+                output_buffer[index] = retval;
             }
-            char4 retval;
-            retval = (char4) ((char) (255.0 * rgba.s0), (char) (255.0 * rgba.s1), (char) (255.0 * rgba.s2), (char) (255.0 * rgba.s3));
 
-            output_buffer[index] = retval;
-        }
-        """)
-        self.colour_green = prg.build()
-
-        if USE_JULIA:
-            prg = cl.Program(self.ctx, """
-            __kernel void julia(int _max, int _xs, int _ys, float _x, float _y, float _w, float _h, float _xc, float _yc, global float *output)
+            __kernel void julia(int _max, int _xs, int _ys,
+                                float _x, float _y, 
+                                float _w, float _h, 
+                                float _xc, float _yc,
+                                global float *output)
             {
                 size_t index = get_global_id(0);
                 float result;
@@ -152,10 +123,7 @@ class cl_unit(object):
                 result = iteration;
                 output[index] = result;
             }
-            """)
-            self.julia = prg.build()
-        else:
-            self.mandelbrot = cl.Program(self.ctx, """
+
             __kernel void mandelbrot(int _max, int _xs, int _ys, float _x, float _y, float _w, float _h, global float *output)
             {
                 size_t index = get_global_id(0);
@@ -187,11 +155,33 @@ class cl_unit(object):
                 }
                 output[index] = result;
             }
-            """).build()
-        
-        
-    
+        """)
 
+        self.kernels = prg.build()    
+
+    def update(self):
+        if USE_JULIA:
+            self.kernels.julia(self.queue, (N,1), None, 
+                         int32(self.max), int32(W), int32(H), float32(self.x), float32(self.y), float32(self.w), 
+                         float32(self.h), float32(self.xc), float32(self.yc), self.cl_mem)
+        else:
+            self.kernels.mandelbrot(self.queue, (N,1), None,
+                         int32(self.max), int32(W), int32(H), float32(self.x), float32(self.y), float32(self.w), 
+                         float32(self.h), self.cl_mem)
+
+        if MONOCHROME:
+            output = np.empty((N,1), dtype=np.float32)
+            cl.enqueue_copy(self.queue, output, self.cl_mem).wait()
+        else:        
+            self.kernels.min_value(self.queue, (1, 1), None,
+                              self.cl_mem, int32(N), self.cl_min)
+
+            self.kernels.colour_green(self.queue, (N,1), None,
+                              self.cl_mem, self.cl_colour_buffer, self.cl_min, float32(self.max))
+            output = np.empty((N,1), dtype=np.int32)                              
+            cl.enqueue_copy(self.queue, output, self.cl_colour_buffer).wait()
+
+        return output
     
 
 class Panel(wx.Panel):
@@ -248,8 +238,11 @@ class Panel(wx.Panel):
         buffer = self.cl_model.update()
         data = buffer.tostring()
 
-        # create a grayscale image
-        image = Image.frombuffer("RGB", (W, H), data)
+        if MONOCHROME:
+            # create a grayscale image
+            image = Image.frombuffer("F", (W, H), data).convert('RGB')
+        else:
+            image = Image.frombuffer("RGB", (W, H), data)
 
         width, height = image.size
         data = image.tostring()
