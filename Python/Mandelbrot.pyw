@@ -7,6 +7,7 @@ from numpy import int32, float32
 
 USE_JULIA = False
 MONOCHROME = True
+OVERLAPPED = True
 
 W = 1024
 H = 768
@@ -32,6 +33,8 @@ class cl_unit(object):
         self.cl_min = cl.Buffer(self.ctx, mf.WRITE_ONLY, 4)
         self.cl_colour_buffer = cl.Buffer(self.ctx, mf.WRITE_ONLY, N * 4)        
         self.max = MAX_ITERATIONS
+        self.next_buffer = np.empty((N,1), dtype=np.int32)
+        self.cl_copy_handle = None
 
         if USE_JULIA:
             self.x = -2.0
@@ -170,8 +173,18 @@ class cl_unit(object):
                          float32(self.h), self.cl_mem)
 
         if MONOCHROME:
-            output = np.empty((N,1), dtype=np.float32)
-            cl.enqueue_copy(self.queue, output, self.cl_mem).wait()
+            if OVERLAPPED:
+                if self.cl_copy_handle:
+                    self.cl_copy_handle.wait()
+
+                self.current_buffer = self.next_buffer
+
+                self.next_buffer = np.empty((N,1), dtype=np.float32)
+                self.cl_copy_handle = cl.enqueue_copy(self.queue, self.next_buffer, self.cl_mem)
+            else:
+                self.current_buffer = np.empty((N,1), dtype=np.float32)
+                cl.enqueue_copy(self.queue, self.current_buffer, self.cl_mem).wait()
+            
         else:        
             self.kernels.min_value(self.queue, (1, 1), None,
                               self.cl_mem, int32(N), self.cl_min)
@@ -181,7 +194,7 @@ class cl_unit(object):
             output = np.empty((N,1), dtype=np.int32)                              
             cl.enqueue_copy(self.queue, output, self.cl_colour_buffer).wait()
 
-        return output
+        return self.current_buffer
     
 
 class Panel(wx.Panel):
