@@ -202,7 +202,7 @@ class Panel(wx.Panel):
 
     def on_left(self, event):
         point = event.GetPosition()
-        point = float(W - point[0]), float(H - point[1])
+        point = float(point[0]), H - float(point[1])
 
         #if USE_JULIA:
         #    self.cl_model.xc = 2 * float(point[0])/W - 1
@@ -213,16 +213,16 @@ class Panel(wx.Panel):
             y = self.cl_model.y + self.cl_model.h * (point[1] / H)
             self.cl_model.w /= ZOOM
             self.cl_model.h /= ZOOM
-            self.cl_model.x = x - self.cl_model.w / 2
-            self.cl_model.y = y - self.cl_model.h / 2
+            self.cl_model.x = x - self.cl_model.w / 2.0
+            self.cl_model.y = y - self.cl_model.h / 2.0
         self.update()
         
     def on_right(self, event):
         point = event.GetPosition()
-        point = W - point[0], H -point[1]
+        point = float(point[0]), H - float(point[1])
     
-        x = self.cl_model.x + self.cl_model.w * float(point[0]) / W
-        y = self.cl_model.y + self.cl_model.h * float(point[1]) / H
+        x = self.cl_model.x + self.cl_model.w * point[0] / W
+        y = self.cl_model.y + self.cl_model.h * point[1] / H
         self.cl_model.w *= ZOOM
         self.cl_model.h *= ZOOM
         self.cl_model.x = x - self.cl_model.w / 2
