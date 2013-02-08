@@ -198,12 +198,27 @@ class Panel(wx.Panel):
         self.Bind(wx.EVT_PAINT, self.on_paint)
         self.Bind(wx.EVT_LEFT_DOWN, self.on_left)
         self.Bind(wx.EVT_RIGHT_DOWN, self.on_right)
+        self.initial = True
         self.update()
+        wx.CallLater(10,self.timer_func)
 
-    def on_left(self, event):
-        point = event.GetPosition()
+    def timer_func(self):
+        self.on_left(zoom=1.01)
+        #wx.CallLater(10, self.timer_func)
+
+    def on_left(self, event = None, zoom = ZOOM):
+        if event:
+            point = event.GetPosition()
+        else:
+            if self.initial:
+                point = 424,326
+                self.initial = False
+            else:
+                point = W/2, H/2
+
         point = float(point[0]), H - float(point[1])
 
+        
         #if USE_JULIA:
         #    self.cl_model.xc = 2 * float(point[0])/W - 1
         #    self.cl_model.yc = 2 * float(point[1])/H - 1
@@ -211,14 +226,20 @@ class Panel(wx.Panel):
         if True:
             x = self.cl_model.x + self.cl_model.w * (point[0] / W)
             y = self.cl_model.y + self.cl_model.h * (point[1] / H)
-            self.cl_model.w /= ZOOM
-            self.cl_model.h /= ZOOM
+            self.cl_model.w /= zoom
+            self.cl_model.h /= zoom
             self.cl_model.x = x - self.cl_model.w / 2.0
             self.cl_model.y = y - self.cl_model.h / 2.0
         self.update()
         
-    def on_right(self, event):
-        point = event.GetPosition()
+        if not event:
+            wx.CallLater(0, self.on_left, zoom =1.01)
+        
+    def on_right(self, event = None):
+        if event:
+            point = event.GetPosition()
+        else:
+            point = W/2, H/2
         point = float(point[0]), H - float(point[1])
     
         x = self.cl_model.x + self.cl_model.w * point[0] / W
@@ -231,10 +252,11 @@ class Panel(wx.Panel):
     
     def update_titlebar(self):
         self.parent.SetTitle("OpenCL Mandelbrot - simple example (%.2f fps)" % self.fps)
+
     def update(self):
         self.Refresh()
         self.Update()
-        wx.CallLater(1000, self.update)
+        #wx.CallLater(1000, self.update)
 
     def create_bitmap(self):
         # get the opencl data
